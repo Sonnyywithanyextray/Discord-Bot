@@ -105,7 +105,7 @@ public class App {
 
     public static void main(String[] args) {
         api = new DiscordApiBuilder()
-                .setToken("MTEyOTUzMjQ1NTY5MTUwNTc5NQ.Gq-TNV.8aXMGtiIoIilR_-rOIV5GhykedyHw-W3oQ0ILI")
+                .setToken("empty for obvious reasons")
                 .setAllIntents()
                 .login()
                 .join();
