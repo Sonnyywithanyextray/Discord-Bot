@@ -6,6 +6,9 @@ import org.javacord.api.entity.channel.TextChannel;
 import org.javacord.api.entity.server.Server;
 import org.javacord.api.entity.user.User;
 import org.javacord.api.event.message.MessageCreateEvent;
+
+import sonny.services.DatabaseConnectionService;
+
 import org.javacord.api.entity.permission.Role;
 
 import java.util.ArrayList;
@@ -22,6 +25,10 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
 import org.javacord.api.entity.message.embed.EmbedBuilder;
+
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.Connection;
 
 public class App {
 
@@ -64,6 +71,12 @@ public class App {
                             channel.sendMessage("Muted user: " + user.getName() + " for reason: " + muteReason + " for duration: " + time);
                             //must implement more logic to complete the mute cmd.
                             break;
+                        case "viewsuggestions":
+                            viewSuggestions(channel);
+                            break;
+                        case "viewbugs":
+                            viewBugs(channel);
+                            break;
                         default:
                             channel.sendMessage("Unknown command.");
                             break;
@@ -105,7 +118,7 @@ public class App {
 
     public static void main(String[] args) {
         api = new DiscordApiBuilder()
-                .setToken("empty for obvious reasons")
+                .setToken("MTEyOTUzMjQ1NTY5MTUwNTc5NQ.GnoOwH.MjZ-uMqoIt13xDjfuwtMLHGT3S7WB_UmMeJAoA")
                 .setAllIntents()
                 .login()
                 .join();
@@ -259,5 +272,48 @@ public class App {
         // implementation to fetch the user count 
         // Will look into AWS API in future to find out if I can fetch user count. For now, returning a mock value for demonstration purposes
         return 1500;  
+    }
+
+    private static void viewSuggestions(TextChannel channel) {
+        System.out.println("Entering viewSuggestions method...");  // Debug statement at start
+        try (Connection conn = DatabaseConnectionService.getConnection()) {
+        Statement stmt = conn.createStatement();
+        System.out.println("Executing query for suggestions...");  // Debug statement after DB query
+        ResultSet rs = stmt.executeQuery("SELECT * FROM Suggestions");
+
+        StringBuilder sb = new StringBuilder("Suggestions:\n");
+        while (rs.next()) {
+            String suggestion = rs.getString("suggestion_text");  // assuming column name in database is 'suggestion_text'
+            sb.append("- ").append(suggestion).append("\n");
+        }
+        channel.sendMessage(sb.toString());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Error encountered in viewSuggestions method: " + e.getMessage());  // Debug statement in catch block
+            channel.sendMessage("Error fetching suggestions.");
+        }
+    }
+
+    private static void viewBugs(TextChannel channel) {
+        System.out.println("Entering viewBugs method...");  // Debug statement at start
+        try (Connection conn = DatabaseConnectionService.getConnection()) {
+            Statement stmt = conn.createStatement();
+            System.out.println("Executing query for bugs...");  // Debug statement after DB query
+            ResultSet rs = stmt.executeQuery("SELECT * FROM Bugs");
+    
+            StringBuilder sb = new StringBuilder("Bugs:\n");
+            while (rs.next()) {
+                String bug = rs.getString("bug_text");  // assuming column name in database is 'bug_text'
+                sb.append("- ").append(bug).append("\n");
+            }
+            channel.sendMessage(sb.toString());
+    
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Error encountered in viewBugs method: " + e.getMessage());  // Debug statement in catch block
+            channel.sendMessage("Error fetching bugs.");
+        }
+
     }
 }
