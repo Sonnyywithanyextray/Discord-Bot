@@ -35,12 +35,13 @@ public class App {
     private static DiscordApi api;
     private static List<String> randomMessages = new ArrayList<>();
 
-    private static final Pattern COMMAND_PATTERN = Pattern.compile("^!(\\w+)\\s+(\\S+)\\s*(.*)$");
+    private static final Pattern COMMAND_PATTERN = Pattern.compile("^!(\\w+)(?:\\s+(\\S+)(?:\\s+(.*))?)?$");
     private static final String ANNOUNCEMENTS_CHANNEL_ID = "1055148431288582194"; 
     private static final String SUGGESTION_CHANNEL_ID = "1055996985032847440";
     private static final String BUG_CHANNEL_ID = "1055997017471590411";
 
     public static void handleCommands(String messageContent, TextChannel channel, MessageCreateEvent event) {
+
         Matcher matcher = COMMAND_PATTERN.matcher(messageContent);
         if (matcher.find()) {
             System.out.println("handleCommands triggered with content: " + messageContent); // Debug log
@@ -48,11 +49,28 @@ public class App {
             String userId = matcher.group(2);
             String reason = matcher.group(3);
 
+            if (command.equals("!testInsert")) {
+                DatabaseConnectionService.insertDummyBug();
+                
+            }
+
+            switch (command.toLowerCase()) {
+                case "viewsuggestions":
+                    viewSuggestions(channel);
+                    return;
+                case "viewbugs":
+                    viewBugs(channel);
+                    return;
+            }
             api.getUserById(userId).thenAccept(user -> {
                 if (user != null) {
                     Server server = event.getServer().orElse(null);
                     switch (command.toLowerCase()) {
                         case "ban":
+                            if (reason == null) {
+                                channel.sendMessage("Please provide a ban duration and reason.");
+                                return;
+                            }
                             String[] parts = reason.split("\\s", 2);
                             int durationInDays = Integer.parseInt(parts[0]);
                             String banReason = parts.length > 1 ? parts[1] : "";
@@ -61,75 +79,76 @@ public class App {
                             server.banUser(user, duration, banReason);
                             break;
                         case "kick":
+                            if (reason == null) {
+                                channel.sendMessage("Please provide a kick reason.");
+                                return;
+                            }
                             channel.sendMessage("Kicked user: " + user.getName() + " for reason: " + reason);
                             server.kickUser(user, reason);
                             break;
                         case "mute":
+                            if (reason == null) {
+                                channel.sendMessage("Please provide a mute duration and reason.");
+                                return;
+                            }
                             String[] parts1 = reason.split("\\s", 2);
                             String time = parts1[0];
                             String muteReason = parts1.length > 1 ? parts1[1] : "";
                             channel.sendMessage("Muted user: " + user.getName() + " for reason: " + muteReason + " for duration: " + time);
                             //must implement more logic to complete the mute cmd.
                             break;
-                        case "viewsuggestions":
-                            viewSuggestions(channel);
-                            break;
-                        case "viewbugs":
-                            viewBugs(channel);
-                            break;
                         default:
-                            channel.sendMessage("Unknown command.");
+                            channel.sendMessage("Unknown command or incorrect format.");
                             break;
                     }
                 } else {
                     channel.sendMessage("User not found.");
                 }
             });
+        
 
             
             
-        if (messageContent.startsWith("!announceupdate ")) {
-            String[] parts = messageContent.substring("!announceupdate ".length()).split("\\|");
+            if (messageContent.startsWith("!announceupdate ")) {
+                String[] parts = messageContent.substring("!announceupdate ".length()).split("\\|");
             
-            if (parts.length < 2) {
-                channel.sendMessage("Incorrect format. Use `!announceupdate [version] | [details]`.");
-                return;
-            }
+                if (parts.length < 2) {
+                    channel.sendMessage("Incorrect format. Use `!announceupdate [version] | [details]`.");
+                    return;
+                }
 
-            String version = parts[0].trim();
-            String details = parts[1].trim();
-            String formattedAnnouncement = String.format(
+                String version = parts[0].trim();
+                String details = parts[1].trim();
+                String formattedAnnouncement = String.format(
                 "📢 New App Update 📢\n\nVersion: %s\nDetails: %s", 
                 version, 
                 details
             );
 
-            TextChannel announcementChannel = api.getTextChannelById(ANNOUNCEMENTS_CHANNEL_ID).orElse(null);
-            if (announcementChannel != null) {
-                announcementChannel.sendMessage(formattedAnnouncement);
-            } else {
-                channel.sendMessage("Failed to send the announcement. Please check if the announcement channel ID is correct.");
+                TextChannel announcementChannel = api.getTextChannelById(ANNOUNCEMENTS_CHANNEL_ID).orElse(null);
+                if (announcementChannel != null) {
+                    announcementChannel.sendMessage(formattedAnnouncement);
+                } else {
+                    channel.sendMessage("Failed to send the announcement. Please check if the announcement channel ID is correct.");
+                }
             }
         }
     }
 
-        
-    }
-
     public static void main(String[] args) {
         api = new DiscordApiBuilder()
-                .setToken("MTEyOTUzMjQ1NTY5MTUwNTc5NQ.GnoOwH.MjZ-uMqoIt13xDjfuwtMLHGT3S7WB_UmMeJAoA")
-                .setAllIntents()
-                .login()
-                .join();
-                api.updateActivity("Download Bright Eye!");
+            .setToken("private token information")
+            .setAllIntents()
+            .login()
+            .join();
+            api.updateActivity("Download Bright Eye!");
 
 
         api.addMessageCreateListener(event -> {
             String messageContent = event.getMessageContent();
 
-                // Check if it's a suggestion
-    if (messageContent.startsWith("!suggestion ") && SUGGESTION_CHANNEL_ID.equals(event.getChannel().getIdAsString())) {
+        // Check if it's a suggestion
+        if (messageContent.startsWith("!suggestion ") && SUGGESTION_CHANNEL_ID.equals(event.getChannel().getIdAsString())) {
         String suggestion = messageContent.substring("!suggestion ".length());
     
         // Get current time in Eastern Time Zone
@@ -146,6 +165,7 @@ public class App {
         .addField("Submitted At", formattedTime, false)
         .addField("Votes", "👍 0% | 👎 0%", false);  // initial percentage; this will change with actual tracking
     
+            
         event.getChannel().sendMessage(embed).thenAcceptAsync(msg -> {
             msg.addReaction("👍");  // thumbs up
             msg.addReaction("👎");  // thumbs down
@@ -314,6 +334,5 @@ public class App {
             System.out.println("Error encountered in viewBugs method: " + e.getMessage());  // Debug statement in catch block
             channel.sendMessage("Error fetching bugs.");
         }
-
     }
 }
