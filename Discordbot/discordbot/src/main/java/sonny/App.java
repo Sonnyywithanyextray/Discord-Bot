@@ -1,15 +1,15 @@
 package sonny;
 
+import sonny.services.DatabaseConnectionService;
+
 import org.javacord.api.DiscordApi;
 import org.javacord.api.DiscordApiBuilder;
 import org.javacord.api.entity.channel.TextChannel;
 import org.javacord.api.entity.server.Server;
 import org.javacord.api.entity.user.User;
 import org.javacord.api.event.message.MessageCreateEvent;
-
-import sonny.services.DatabaseConnectionService;
-
 import org.javacord.api.entity.permission.Role;
+import org.javacord.api.entity.message.embed.EmbedBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +24,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
-import org.javacord.api.entity.message.embed.EmbedBuilder;
 
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -137,7 +136,7 @@ public class App {
 
     public static void main(String[] args) {
         api = new DiscordApiBuilder()
-            .setToken("no value for security reasons")
+            .setToken("MTEyOTUzMjQ1NTY5MTUwNTc5NQ.GZHbKr.C2bcCQkIAl22hbyx8wnPGm9hkaMvoRZuuoiH7o")
             .setAllIntents()
             .login()
             .join();
@@ -151,6 +150,12 @@ public class App {
         if (messageContent.startsWith("!suggestion ") && SUGGESTION_CHANNEL_ID.equals(event.getChannel().getIdAsString())) {
             String suggestion = messageContent.substring("!suggestion ".length());
     
+            //Insert the suggestion into the database
+            DatabaseConnectionService.insertSuggestion(suggestion, event.getMessageAuthor().getDisplayName(), event.getMessageAuthor().getAvatar().getUrl().toString());
+    
+            // Send a confirmation message to the channel
+             event.getChannel().sendMessage("Thank you for your suggestion! It has been recorded.");
+
             // Get current time in Eastern Time Zone
             ZonedDateTime nowInEastern = ZonedDateTime.now(ZoneId.of("America/New_York"));
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss z");
@@ -175,6 +180,8 @@ public class App {
     // Check if it's a bug report
         else if (messageContent.startsWith("!bug ") && BUG_CHANNEL_ID.equals(event.getChannel().getIdAsString())) {
             String bug = messageContent.substring("!bug ".length());
+            String authorDisplayName = event.getMessageAuthor().getDisplayName();
+            String avatarUrl = event.getMessageAuthor().getAvatar().getUrl().toString();
         
             // Get current time in Eastern Time Zone
             ZonedDateTime nowInEastern = ZonedDateTime.now(ZoneId.of("America/New_York"));
@@ -188,9 +195,13 @@ public class App {
                 .setThumbnail(event.getMessageAuthor().getAvatar())
                 .addField("Submitted At", formattedTime, false);
         
+
              event.getChannel().sendMessage(embed).thenAcceptAsync(msg -> {
                 msg.addReaction("👍");  // thumbs up for 'acknowledged'
                 msg.addReaction("👎");  // thumbs down for 'not a bug' or 'can't reproduce'
+
+                // Insert the bug into the database
+                DatabaseConnectionService.insertBug(bug, authorDisplayName,avatarUrl);
             });
         }
 
@@ -232,7 +243,7 @@ public class App {
         api.addServerMemberJoinListener(event -> {
             User newUser = event.getUser();
             Server server = event.getServer();
-                // Find the "verified" role by its name
+            // Find the "verified" role by its name
             List<Role> verifiedRoles = server.getRolesByName("Member");
                 if (!verifiedRoles.isEmpty()) {
                     Role verifiedRole = verifiedRoles.get(0); // Get the first "verified" role, assuming there's only one
@@ -295,41 +306,46 @@ public class App {
     private static void viewSuggestions(TextChannel channel) {
         System.out.println("Entering viewSuggestions method...");  // Debug statement at start
         try (Connection conn = DatabaseConnectionService.getConnection()) {
-        Statement stmt = conn.createStatement();
-        System.out.println("Executing query for suggestions...");  // Debug statement after DB query
-        ResultSet rs = stmt.executeQuery("SELECT * FROM Suggestions");
-
-        StringBuilder sb = new StringBuilder("Suggestions:\n");
-        while (rs.next()) {
-            String suggestion = rs.getString("suggestion");  // assuming column name in database is 'suggestion_text'
-            sb.append("- ").append(suggestion).append("\n");
-        }
-        channel.sendMessage(sb.toString());
-
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM Suggestions");
+            
+            while (rs.next()) {
+                String title = rs.getString("title");
+                String suggestion = rs.getString("suggestion");
+                String footer = rs.getString("footer");
+                String thumbnail = rs.getString("thumbnail");
+                
+                EmbedBuilder embed = new EmbedBuilder()
+                    .setTitle(title)
+                    .setDescription(suggestion)
+                    .setFooter(footer)
+                    .setThumbnail(thumbnail);
+                channel.sendMessage(embed);
+            }
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println("Error encountered in viewSuggestions method: " + e.getMessage());  // Debug statement in catch block
             channel.sendMessage("Error fetching suggestions.");
         }
     }
 
     private static void viewBugs(TextChannel channel) {
-        System.out.println("Entering viewBugs method...");  // Debug statement at start
         try (Connection conn = DatabaseConnectionService.getConnection()) {
             Statement stmt = conn.createStatement();
-            System.out.println("Executing query for bugs...");  // Debug statement after DB query
             ResultSet rs = stmt.executeQuery("SELECT * FROM Bugs");
-    
-            StringBuilder sb = new StringBuilder("Bugs:\n");
             while (rs.next()) {
-                String bug = rs.getString("bug_description");  // assuming column name in database is 'bug_text'
-                sb.append("- ").append(bug).append("\n");
+                String title = rs.getString("title");
+                String description = rs.getString("description");
+                String footer = rs.getString("footer");
+                String thumbnail = rs.getString("thumbnail");
+                EmbedBuilder embed = new EmbedBuilder()
+                    .setTitle(title)
+                    .setDescription(description)
+                    .setFooter(footer)
+                    .setThumbnail(thumbnail);
+            channel.sendMessage(embed);
             }
-            channel.sendMessage(sb.toString());
-    
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println("Error encountered in viewBugs method: " + e.getMessage());  // Debug statement in catch block
             channel.sendMessage("Error fetching bugs.");
         }
     }
