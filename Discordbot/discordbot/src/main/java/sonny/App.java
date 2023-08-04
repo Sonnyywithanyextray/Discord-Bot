@@ -137,7 +137,7 @@ public class App {
 
     public static void main(String[] args) {
         api = new DiscordApiBuilder()
-            .setToken("private token information")
+            .setToken("no value for security reasons")
             .setAllIntents()
             .login()
             .join();
@@ -149,59 +149,57 @@ public class App {
 
         // Check if it's a suggestion
         if (messageContent.startsWith("!suggestion ") && SUGGESTION_CHANNEL_ID.equals(event.getChannel().getIdAsString())) {
-        String suggestion = messageContent.substring("!suggestion ".length());
+            String suggestion = messageContent.substring("!suggestion ".length());
     
-        // Get current time in Eastern Time Zone
-        ZonedDateTime nowInEastern = ZonedDateTime.now(ZoneId.of("America/New_York"));
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss z");
-        String formattedTime = nowInEastern.format(formatter);
+            // Get current time in Eastern Time Zone
+            ZonedDateTime nowInEastern = ZonedDateTime.now(ZoneId.of("America/New_York"));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss z");
+            String formattedTime = nowInEastern.format(formatter);
 
-        // Create the embed
-        EmbedBuilder embed = new EmbedBuilder()
-        .setTitle("New Suggestion")
-        .setDescription(suggestion)
-        .setFooter("Suggested by: " + event.getMessageAuthor().getDisplayName())
-        .setThumbnail(event.getMessageAuthor().getAvatar())
-        .addField("Submitted At", formattedTime, false)
-        .addField("Votes", "👍 0% | 👎 0%", false);  // initial percentage; this will change with actual tracking
+            // Create the embed
+            EmbedBuilder embed = new EmbedBuilder()
+            .setTitle("New Suggestion")
+            .setDescription(suggestion)
+            .setFooter("Suggested by: " + event.getMessageAuthor().getDisplayName())
+            .setThumbnail(event.getMessageAuthor().getAvatar())
+            .addField("Submitted At", formattedTime, false)
+            .addField("Votes", "👍 0% | 👎 0%", false);  // initial percentage; this will change with actual tracking
     
             
-        event.getChannel().sendMessage(embed).thenAcceptAsync(msg -> {
-            msg.addReaction("👍");  // thumbs up
-            msg.addReaction("👎");  // thumbs down
-    });
-    }
+            event.getChannel().sendMessage(embed).thenAcceptAsync(msg -> {
+                msg.addReaction("👍");  // thumbs up
+                msg.addReaction("👎");  // thumbs down
+            });
+        }   
 
-    
-    
     // Check if it's a bug report
-    else if (messageContent.startsWith("!bug ") && BUG_CHANNEL_ID.equals(event.getChannel().getIdAsString())) {
-        String bug = messageContent.substring("!bug ".length());
+        else if (messageContent.startsWith("!bug ") && BUG_CHANNEL_ID.equals(event.getChannel().getIdAsString())) {
+            String bug = messageContent.substring("!bug ".length());
         
-        // Get current time in Eastern Time Zone
-        ZonedDateTime nowInEastern = ZonedDateTime.now(ZoneId.of("America/New_York"));
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss z");
-        String formattedTime = nowInEastern.format(formatter);
+            // Get current time in Eastern Time Zone
+            ZonedDateTime nowInEastern = ZonedDateTime.now(ZoneId.of("America/New_York"));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss z");
+            String formattedTime = nowInEastern.format(formatter);
 
-        EmbedBuilder embed = new EmbedBuilder()
-            .setTitle("Bug Reported")
-            .setDescription(bug)
-            .setFooter("Reported by: " + event.getMessageAuthor().getDisplayName())
-            .setThumbnail(event.getMessageAuthor().getAvatar())
-            .addField("Submitted At", formattedTime, false);
+            EmbedBuilder embed = new EmbedBuilder()
+                .setTitle("Bug Reported")
+                .setDescription(bug)
+                .setFooter("Reported by: " + event.getMessageAuthor().getDisplayName())
+                .setThumbnail(event.getMessageAuthor().getAvatar())
+                .addField("Submitted At", formattedTime, false);
         
-        event.getChannel().sendMessage(embed).thenAcceptAsync(msg -> {
-            msg.addReaction("👍");  // thumbs up for 'acknowledged'
-            msg.addReaction("👎");  // thumbs down for 'not a bug' or 'can't reproduce'
-        });
-    }
+             event.getChannel().sendMessage(embed).thenAcceptAsync(msg -> {
+                msg.addReaction("👍");  // thumbs up for 'acknowledged'
+                msg.addReaction("👎");  // thumbs down for 'not a bug' or 'can't reproduce'
+            });
+        }
 
 
-            if (messageContent.startsWith("!add randommessage ")) {
+        if (messageContent.startsWith("!add randommessage ")) {
                 String newMessage = messageContent.substring("!add randommessage ".length());
                 randomMessages.add(newMessage);
                 event.getChannel().sendMessage("Added new message: " + newMessage);
-            } else if (messageContent.equals("!view randommessages")) {
+        } else if (messageContent.equals("!view randommessages")) {
                 if (randomMessages.isEmpty()) {
                     event.getChannel().sendMessage("No random messages added yet.");
                     return;
@@ -303,7 +301,7 @@ public class App {
 
         StringBuilder sb = new StringBuilder("Suggestions:\n");
         while (rs.next()) {
-            String suggestion = rs.getString("suggestion_text");  // assuming column name in database is 'suggestion_text'
+            String suggestion = rs.getString("suggestion");  // assuming column name in database is 'suggestion_text'
             sb.append("- ").append(suggestion).append("\n");
         }
         channel.sendMessage(sb.toString());
@@ -324,7 +322,7 @@ public class App {
     
             StringBuilder sb = new StringBuilder("Bugs:\n");
             while (rs.next()) {
-                String bug = rs.getString("bug_text");  // assuming column name in database is 'bug_text'
+                String bug = rs.getString("bug_description");  // assuming column name in database is 'bug_text'
                 sb.append("- ").append(bug).append("\n");
             }
             channel.sendMessage(sb.toString());
