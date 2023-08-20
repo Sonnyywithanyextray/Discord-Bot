@@ -1,5 +1,6 @@
 package sonny;
 
+import sonny.services.CognitoHelper;
 import sonny.services.DatabaseConnectionService;
 
 import org.javacord.api.DiscordApi;
@@ -9,6 +10,7 @@ import org.javacord.api.entity.server.Server;
 import org.javacord.api.entity.user.User;
 import org.javacord.api.event.message.MessageCreateEvent;
 import org.javacord.api.entity.permission.Role;
+import org.javacord.api.entity.message.MessageBuilder;
 import org.javacord.api.entity.message.embed.EmbedBuilder;
 
 import java.util.ArrayList;
@@ -18,6 +20,8 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.HashMap;
+import java.util.Map;
 
 import java.time.Duration;
 import java.time.ZoneId;
@@ -29,13 +33,16 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.sql.Connection;
 
+import org.javacord.api.DiscordApi;
+import org.javacord.api.DiscordApiBuilder;
+
+
 public class App {
 
     private static DiscordApi api;
     private static List<String> randomMessages = new ArrayList<>();
-
     private static final Pattern COMMAND_PATTERN = Pattern.compile("^!(\\w+)(?:\\s+(\\S+)(?:\\s+(.*))?)?$");
-    private static final String ANNOUNCEMENTS_CHANNEL_ID = "1055148431288582194"; 
+    private static final String ANNOUNCEMENTS_CHANNEL_ID = "1055148431288582194";
     private static final String SUGGESTION_CHANNEL_ID = "1055996985032847440";
     private static final String BUG_CHANNEL_ID = "1055997017471590411";
 
@@ -50,7 +57,6 @@ public class App {
 
             if (command.equals("!testInsert")) {
                 DatabaseConnectionService.insertDummyBug();
-                
             }
 
             switch (command.toLowerCase()) {
@@ -96,6 +102,13 @@ public class App {
                             channel.sendMessage("Muted user: " + user.getName() + " for reason: " + muteReason + " for duration: " + time);
                             //must implement more logic to complete the mute cmd.
                             break;
+                        case "postupdate":
+                            if (reason == null) {
+                                channel.sendMessage("Please provide the update message.");
+                                return;
+                            }
+                            postUpdateToChannel(reason);
+                            break;
                         default:
                             channel.sendMessage("Unknown command or incorrect format.");
                             break;
@@ -104,13 +117,10 @@ public class App {
                     channel.sendMessage("User not found.");
                 }
             });
-        
 
-            
-            
             if (messageContent.startsWith("!announceupdate ")) {
                 String[] parts = messageContent.substring("!announceupdate ".length()).split("\\|");
-            
+
                 if (parts.length < 2) {
                     channel.sendMessage("Incorrect format. Use `!announceupdate [version] | [details]`.");
                     return;
@@ -119,8 +129,8 @@ public class App {
                 String version = parts[0].trim();
                 String details = parts[1].trim();
                 String formattedAnnouncement = String.format(
-                "📢 New App Update 📢\n\nVersion: %s\nDetails: %s", 
-                version, 
+                "📢 New App Update 📢\n\nVersion: %s\nDetails: %s",
+                version,
                 details
             );
 
@@ -136,12 +146,49 @@ public class App {
 
     public static void main(String[] args) {
         api = new DiscordApiBuilder()
-            .setToken("MTEyOTUzMjQ1NTY5MTUwNTc5NQ.GZHbKr.C2bcCQkIAl22hbyx8wnPGm9hkaMvoRZuuoiH7o")
+            .setToken("bot token")
             .setAllIntents()
             .login()
             .join();
             api.updateActivity("Download Bright Eye!");
 
+        
+        // Set up an event listener for messages
+         api.addMessageCreateListener(event -> {
+            String content = event.getMessageContent();
+
+            if (content.equals("!downloads")) {
+                int estimatedUserCount = CognitoHelper.getEstimatedUserCount();
+                event.getChannel().sendMessage("Estimated number of downloads: " + estimatedUserCount);
+            }
+        });
+        
+
+        //Defining a mapping of role names to descriptions
+        Map<String, String> roleDescriptions = new HashMap<>();
+        roleDescriptions.put("Referrer", "You've invited so many users! We appreciate your help in growing Bright Eye.");
+        roleDescriptions.put("Bug Hunter", "With your help, we have squashed/are in the process of squashing so many bugs! Please continue to help us keep those bugs at bay!");
+        roleDescriptions.put("Ultimate Suggester", "You've helped define and improve Bright Eye with your many suggestions. Keep up the good work!");
+        roleDescriptions.put("Regular user", "You've been using the server so much. Hopefully you do the same with the app. Congratulations");
+        roleDescriptions.put("Active user", "You've been using the server alot!  Hopefully you do the same with the app. Congratulations");
+        roleDescriptions.put("Ultimate Suggester", "You've helped define and improve Bright Eye with your many suggestions. Keep up the good work!");
+        roleDescriptions.put("Member", "Welcome to the multipurpose AI world. Welcome to Bright Eye.");
+        roleDescriptions.put("Server Booster", "Thank you for boosting our server!");
+        roleDescriptions.put("Moderator", "Thank you for protecting our community!");
+
+
+        api.addUserRoleAddListener(event -> {
+            // Retrieve the user who had a role added
+            User user = event.getUser();
+
+            // Fetch the role's description (or a default message if not found)
+            String roleDescription = roleDescriptions.getOrDefault(event.getRole().getName(), "");
+            
+            // Send a private message to the user
+            new MessageBuilder()
+            .append("Hello, " + user.getDiscriminatedName() + "! You have been given the role: " + event.getRole().getName() + ". " + roleDescription)                    
+            .send(user);
+        });
 
         api.addMessageCreateListener(event -> {
             String messageContent = event.getMessageContent();
@@ -149,12 +196,12 @@ public class App {
         // Check if it's a suggestion
         if (messageContent.startsWith("!suggestion ") && SUGGESTION_CHANNEL_ID.equals(event.getChannel().getIdAsString())) {
             String suggestion = messageContent.substring("!suggestion ".length());
-    
+
             //Insert the suggestion into the database
             DatabaseConnectionService.insertSuggestion(suggestion, event.getMessageAuthor().getDisplayName(), event.getMessageAuthor().getAvatar().getUrl().toString());
-    
+
             // Send a confirmation message to the channel
-             event.getChannel().sendMessage("Thank you for your suggestion! It has been recorded.");
+            event.getChannel().sendMessage("Thank you for your suggestion! It has been recorded.");
 
             // Get current time in Eastern Time Zone
             ZonedDateTime nowInEastern = ZonedDateTime.now(ZoneId.of("America/New_York"));
@@ -169,20 +216,20 @@ public class App {
             .setThumbnail(event.getMessageAuthor().getAvatar())
             .addField("Submitted At", formattedTime, false)
             .addField("Votes", "👍 0% | 👎 0%", false);  // initial percentage; this will change with actual tracking
-    
-            
+
+
             event.getChannel().sendMessage(embed).thenAcceptAsync(msg -> {
                 msg.addReaction("👍");  // thumbs up
                 msg.addReaction("👎");  // thumbs down
             });
-        }   
+        }
 
-    // Check if it's a bug report
+        // Check if it's a bug report
         else if (messageContent.startsWith("!bug ") && BUG_CHANNEL_ID.equals(event.getChannel().getIdAsString())) {
             String bug = messageContent.substring("!bug ".length());
             String authorDisplayName = event.getMessageAuthor().getDisplayName();
             String avatarUrl = event.getMessageAuthor().getAvatar().getUrl().toString();
-        
+
             // Get current time in Eastern Time Zone
             ZonedDateTime nowInEastern = ZonedDateTime.now(ZoneId.of("America/New_York"));
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss z");
@@ -194,7 +241,7 @@ public class App {
                 .setFooter("Reported by: " + event.getMessageAuthor().getDisplayName())
                 .setThumbnail(event.getMessageAuthor().getAvatar())
                 .addField("Submitted At", formattedTime, false);
-        
+
 
              event.getChannel().sendMessage(embed).thenAcceptAsync(msg -> {
                 msg.addReaction("👍");  // thumbs up for 'acknowledged'
@@ -204,7 +251,11 @@ public class App {
                 DatabaseConnectionService.insertBug(bug, authorDisplayName,avatarUrl);
             });
         }
-
+        else if (messageContent.startsWith("!postgenupdate")) {
+            String updateMessage = messageContent.substring("!postgenupdate ".length());
+            String formattedUpdateMessage = "📢 New Server Update 📢\n\n" + updateMessage;
+            postUpdateToChannel(formattedUpdateMessage);
+        }
 
         if (messageContent.startsWith("!add randommessage ")) {
                 String newMessage = messageContent.substring("!add randommessage ".length());
@@ -215,7 +266,7 @@ public class App {
                     event.getChannel().sendMessage("No random messages added yet.");
                     return;
                 }
-        
+
                 StringBuilder sb = new StringBuilder("Current random messages:\n");
                 int index = 1;
                 for (String msg : randomMessages) {
@@ -294,13 +345,13 @@ public class App {
                     }
                 }
             }
-        }, 0, 60 * 60 * 1000);  // Post random messages hourly
+        }, 0, 24 * 60 * 60 * 1000);  // Post random messages hourly
     }
 
     public static int getEstimatedUserCount() {
-        // implementation to fetch the user count 
+        // implementation to fetch the user count
         // Will look into AWS API in future to find out if I can fetch user count. For now, returning a mock value for demonstration purposes
-        return 1500;  
+        return 1500;
     }
 
     private static void viewSuggestions(TextChannel channel) {
@@ -308,13 +359,13 @@ public class App {
         try (Connection conn = DatabaseConnectionService.getConnection()) {
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT * FROM Suggestions");
-            
+
             while (rs.next()) {
                 String title = rs.getString("title");
                 String suggestion = rs.getString("suggestion");
                 String footer = rs.getString("footer");
                 String thumbnail = rs.getString("thumbnail");
-                
+
                 EmbedBuilder embed = new EmbedBuilder()
                     .setTitle(title)
                     .setDescription(suggestion)
@@ -349,4 +400,12 @@ public class App {
             channel.sendMessage("Error fetching bugs.");
         }
     }
-}
+    private static void postUpdateToChannel(String updateMessage) {
+        TextChannel updateChannel = api.getTextChannelById("1059965006394962021").orElse(null);
+        if (updateChannel != null) {
+            updateChannel.sendMessage(updateMessage);
+        } else {
+            System.out.println("Update channel not found.");
+        }
+    }    
+} 
